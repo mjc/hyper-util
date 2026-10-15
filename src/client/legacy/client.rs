@@ -276,6 +276,12 @@ where
         mut req: Request<B>,
         pool_key: PoolKey,
     ) -> Result<Response<hyper::body::Incoming>, TrySendError<B>> {
+        if let Ok(timing) = super::REQUEST_TIMING.try_with(Clone::clone) {
+            // Reqwest's decoder remains enabled for unsolicited encoded bodies,
+            // but k6 does not advertise automatic compression support.
+            req.headers_mut().remove(hyper::header::ACCEPT_ENCODING);
+            req.extensions_mut().insert(timing);
+        }
         let mut pooled = self
             .connection_for(pool_key)
             .await
@@ -1554,6 +1560,8 @@ impl Builder {
     {
         #[cfg(feature = "http2")]
         self.h2_builder.timer(timer);
+        #[cfg(not(feature = "http2"))]
+        let _ = timer;
         self
     }
 
